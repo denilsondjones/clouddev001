@@ -7,7 +7,7 @@ on:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GKE_CLUSTER: clouddev-cluster
+  GKE_CLUSTER: clouddev001
   GKE_ZONE: us-central1-a
   REPOSITORY: clouddev-repo
   REGION: us-central1
