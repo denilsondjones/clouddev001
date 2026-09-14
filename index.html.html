@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SRE Learning Hub & Operational Dashboard</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Minimalist Custom Chart Container Styling */
+    .chart-container {
+      position: relative;
+      width: 100%;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+      height: 280px;
+      max-height: 350px;
+    }
+    @media (min-width: 768px) {
+      .chart-container {
+        height: 320px;
+      }
+    }
+    /* Smooth transitions */
+    .tab-btn.active {
+      border-bottom: 3px solid #0284c7;
+      color: #0369a1;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+  <!-- Chosen Palette: Warm Neutral & Engineering Slate (Background: #F8FAFC, Accent: #0284C7, Slate: #0F172A) -->
+  <!-- Application Structure Plan:
+       1. Header & Performance Summary: Top bar displaying overall score (9/10 - 90%) and key takeaway.
+       2. Navigation Tabs: Dashboard/Overview, Error Budget Calculator, Four Golden Signals, Toil Simulator, and Quiz Review.
+       3. Dynamic Interactive Modules:
+          - Error Budget Math Lab: Slider-driven real-time calculation of allowable downtime and error tolerance per 1M requests.
+          - Four Golden Signals Dashboard: Live visual representation with interactive tabs explaining Latency, Traffic, Errors, Saturation.
+          - Toil Allocation Simulator: Dynamic Donut chart verifying the SRE 50% rule.
+          - Quiz Breakdown & Deep Dive: Detailed breakdown of the 10 questions with emphasis on Question 1 (SLO vs Error Budget).
+       Rationale: SRE principles require practical understanding of metrics and math. Visualizing downtime, toil limits, and golden signals interactively solidifies theoretical knowledge far better than static text.
+  -->
+  <!-- Visualization & Content Choices:
+       - Score Breakdown: Doughnut Chart (Chart.js) showing 90% correct vs 10% missed.
+       - Error Budget Math: Interactive JS slider showing output in minutes/month and seconds/year.
+       - Toil Capacity: Dynamic Pie/Doughnut Chart (Chart.js) reacting to time allocation input.
+       - Golden Signals: Dynamic Line/Bar Chart (Chart.js) modeling telemetry data.
+       - Icons: Clean CSS/Unicode characters (No SVG used).
+  -->
+  <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+  <!-- Header -->
+  <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <span class="bg-sky-500 text-slate-900 font-bold px-2.5 py-1 rounded text-sm tracking-wider uppercase">SRE Core</span>
+        <h1 class="text-xl font-bold tracking-tight">Hub de Engenharia de Confiabilidade & Aprendizado</h1>
+      </div>
+      <div class="flex items-center gap-6 bg-slate-800 px-4 py-2 rounded-lg text-xs md:text-sm">
+        <div>
+          <span class="text-slate-400 block">Resultado do Quiz:</span>
+          <span class="text-emerald-400 font-bold text-base">9 / 10 (90% de Aproveitamento)</span>
+        </div>
+        <div class="h-8 w-px bg-slate-700"></div>
+        <div>
+          <span class="text-slate-400 block">Nível Demonstrado:</span>
+          <span class="text-sky-400 font-bold text-base">Avançado / SRE Practitioner</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+    <!-- Introductory Banner -->
+    <section class="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+      <h2 class="text-lg font-bold text-slate-900 mb-2">✦ Visão Geral do Aprendizado</h2>
+      <p class="text-slate-600 leading-relaxed text-sm md:text-base">
+        Este painel interativo sintetiza os conceitos fundamentais de Site Reliability Engineering (SRE) com base no seu teste de conhecimento. Explore as calculadoras operacionais, simule parâmetros de observabilidade e revise os tópicos-chave para fortalecer o equilíbrio entre estabilidade e velocidade de inovação.
+      </p>
+    </section>
+
+    <!-- Navigation Tabs -->
+    <div class="border-b border-slate-200 flex overflow-x-auto gap-4 md:gap-8 text-sm font-medium text-slate-500">
+      <button onclick="switchTab('calculator')" id="tab-calculator" class="tab-btn active py-3 px-1 whitespace-nowrap focus:outline-none">
+        📐 Calculadora de Error Budget
+      </button>
+      <button onclick="switchTab('signals')" id="tab-signals" class="tab-btn py-3 px-1 whitespace-nowrap focus:outline-none">
+        📊 Os 4 Sinais Dourados
+      </button>
+      <button onclick="switchTab('toil')" id="tab-toil" class="tab-btn py-3 px-1 whitespace-nowrap focus:outline-none">
+        ⚙️ Governança de Toil
+      </button>
+      <button onclick="switchTab('quiz')" id="tab-quiz" class="tab-btn py-3 px-1 whitespace-nowrap focus:outline-none">
+        📋 Revisão Detalhada do Quiz (10 Questões)
+      </button>
+    </div>
+
+    <!-- TAB 1: ERROR BUDGET CALCULATOR -->
+    <section id="sec-calculator" class="space-y-6">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <h3 class="text-lg font-bold text-slate-900 mb-2">Calculadora Interativa de SLO & Error Budget</h3>
+        <p class="text-sm text-slate-600 mb-6">
+          A relação matemática entre SLO e Error Budget é expressa por: <strong class="text-slate-900">Error Budget = 100% - SLO</strong>. Ajuste a meta do Service Level Objective abaixo para visualizar a margem de indisponibilidade permitida para sua equipe.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+          <!-- Control Panel -->
+          <div class="space-y-6 bg-slate-50 p-6 rounded-lg border border-slate-200">
+            <div>
+              <label for="slo-slider" class="block text-sm font-semibold text-slate-700 mb-2">
+                Definir SLO de Disponibilidade: <span id="slo-val" class="text-sky-600 text-lg font-bold">99.9%</span>
+              </label>
+              <input id="slo-slider" type="range" min="95.00" max="99.999" step="0.001" value="99.900" 
+                     class="w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-sky-600"
+                     oninput="updateErrorBudgetMath(this.value)">
+              <div class="flex justify-between text-xs text-slate-500 mt-1">
+                <span>95% (Baixa Confiabilidade)</span>
+                <span>99.999% (Cinco Novedades)</span>
+              </div>
+            </div>
+
+            <div class="space-y-3 border-t border-slate-200 pt-4">
+              <div class="flex justify-between items-center text-sm">
+                <span class="text-slate-600">Error Budget Relativo:</span>
+                <span id="eb-percentage" class="font-bold text-slate-900">0.100%</span>
+              </div>
+              <div class="flex justify-between items-center text-sm">
+                <span class="text-slate-600">Tempo de Indisponibilidade/Mês (30 dias):</span>
+                <span id="downtime-month" class="font-bold text-rose-600">43m 12s</span>
+              </div>
+              <div class="flex justify-between items-center text-sm">
+                <span class="text-slate-600">Tempo de Indisponibilidade/Ano (365 dias):</span>
+                <span id="downtime-year" class="font-bold text-rose-600">8h 45m 36s</span>
+              </div>
+              <div class="flex justify-between items-center text-sm">
+                <span class="text-slate-600">Requisições com Falha Toleradas (a cada 1M):</span>
+                <span id="failed-reqs" class="font-bold text-amber-600">1,000 reqs</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Explanatory Insight Box -->
+          <div class="bg-sky-50 border border-sky-200 rounded-lg p-6 space-y-4 text-sm text-sky-900">
+            <h4 class="font-bold text-sky-950 flex items-center gap-2">
+              💡 Diretriz de Governança quando o Error Budget é Consumido
+            </h4>
+            <p>
+              O <strong>Error Budget</strong> funciona como uma moeda de negociação entre Engenharia de Produto e SRE.
+            </p>
+            <ul class="list-disc list-inside space-y-2 text-sky-800">
+              <li><strong>Budget Disponível (> 0%):</strong> A equipe tem permissão para realizar deploys rápidos, testar novas funcionalidades e assumir riscos controlados.</li>
+              <li><strong>Budget Zerado (0%):</strong> É ativada a política defensiva. Bloqueiam-se novos deploys de features e 100% dos recursos de engenharia passam a focar em estabilização, correção de bugs e automação.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: FOUR GOLDEN SIGNALS -->
+    <section id="sec-signals" class="space-y-6 hidden">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <h3 class="text-lg font-bold text-slate-900 mb-2">Os Quatro Sinais Dourados (Four Golden Signals)</h3>
+        <p class="text-sm text-slate-600 mb-6">
+          Definidos no livro do Google SRE, esses quatro pilares medem com precisão o estado de saúde e capacidade operacional de qualquer sistema distribuído.
+        </p>
+
+        <!-- Dynamic Chart Container -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div class="lg:col-span-2 bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <h4 class="text-sm font-semibold text-slate-700 mb-4">Simulação em Tempo Real das Métricas da Aplicação</h4>
+            <div class="chart-container">
+              <canvas id="goldenSignalsChart"></canvas>
+            </div>
+          </div>
+
+          <div class="space-y-3 flex flex-col justify-center">
+            <div onclick="highlightSignal(0)" class="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg cursor-pointer transition">
+              <span class="text-xs font-bold text-sky-600 uppercase tracking-wider block">1. Latência</span>
+              <p class="text-xs text-slate-600 mt-1">Tempo necessário para processar requisições. Separe latência de requisições com sucesso de falhas.</p>
+            </div>
+            <div onclick="highlightSignal(1)" class="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg cursor-pointer transition">
+              <span class="text-xs font-bold text-emerald-600 uppercase tracking-wider block">2. Tráfego</span>
+              <p class="text-xs text-slate-600 mt-1">Carga e demanda do sistema (ex: requisições HTTP por segundo, I/O de rede ou transações).</p>
+            </div>
+            <div onclick="highlightSignal(2)" class="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg cursor-pointer transition">
+              <span class="text-xs font-bold text-rose-600 uppercase tracking-wider block">3. Erros</span>
+              <p class="text-xs text-slate-600 mt-1">Taxa de requisições que falham explicitamente (5xx HTTP) ou implicitamente por conteúdo incorreto.</p>
+            </div>
+            <div onclick="highlightSignal(3)" class="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg cursor-pointer transition">
+              <span class="text-xs font-bold text-amber-600 uppercase tracking-wider block">4. Saturação</span>
+              <p class="text-xs text-slate-600 mt-1">Quão "cheio" está o serviço. Mede os recursos mais restritos (CPU, Memória, Pool de conexões DB).</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: TOIL GOVERNANCE -->
+    <section id="sec-toil" class="space-y-6 hidden">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <h3 class="text-lg font-bold text-slate-900 mb-2">Simulador de Governança do Toil (Regra dos 50%)</h3>
+        <p class="text-sm text-slate-600 mb-6">
+          <strong>Toil</strong> é o trabalho operacional manual, repetitivo, automatizável e que não agrega valor de longo prazo. O SRE Google estabelece o limite máximo de <strong>50% de Toil</strong> na jornada de trabalho.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+          <div class="space-y-6 bg-slate-50 p-6 rounded-lg border border-slate-200">
+            <div>
+              <label for="toil-slider" class="block text-sm font-semibold text-slate-700 mb-2">
+                Alocação de Tempo em Toil: <span id="toil-val" class="text-amber-600 font-bold text-lg">35%</span>
+              </label>
+              <input id="toil-slider" type="range" min="10" max="90" step="5" value="35" 
+                     class="w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-amber-600"
+                     oninput="updateToilChart(this.value)">
+            </div>
+
+            <div id="toil-status-box" class="p-4 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-900">
+              <span class="font-bold block text-emerald-950 mb-1">✅ Operação Saudável</span>
+              Você está dedicando <strong id="eng-val">65%</strong> do tempo para Engenharia e Automação. Isso previne o burnout e garante escalabilidade contínua da infraestrutura.
+            </div>
+          </div>
+
+          <!-- Chart Box -->
+          <div class="bg-white p-4 rounded-lg border border-slate-200 flex flex-col items-center">
+            <h4 class="text-sm font-semibold text-slate-700 mb-2">Distribuição de Tempo da Equipe</h4>
+            <div class="chart-container">
+              <canvas id="toilChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: QUIZ REVIEW -->
+    <section id="sec-quiz" class="space-y-6 hidden">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Revisão Detalhada das Questões do Quiz</h3>
+            <p class="text-sm text-slate-600">Análise detalhada do seu desempenho em cada tópico avaliado.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+            <span class="text-xs text-slate-600 font-medium">9 Corretas</span>
+            <span class="w-3 h-3 rounded-full bg-rose-500 inline-block ml-3"></span>
+            <span class="text-xs text-slate-600 font-medium">1 Incorreta (Atenção ao Conceito)</span>
+          </div>
+        </div>
+
+        <div id="quiz-list" class="space-y-4">
+          <!-- Quiz items injected dynamically via JS -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-slate-900 text-slate-400 text-xs py-6 border-t border-slate-800 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 text-center space-y-2">
+      <p>SRE Learning Hub — Baseado nos princípios do Google Site Reliability Engineering.</p>
+      <p class="text-slate-500">Desenvolvido como Single Page Application (SPA) para consumo e prática interativa de conceitos de infraestrutura distribuída.</p>
+    </div>
+  </footer>
+
+  <!-- JavaScript Logic -->
+  <script>
+    // Quiz Data Source
+    const quizData = [
+      {
+        id: 1,
+        question: "Qual é a relação fundamental entre o Service Level Objective (SLO) e o Error Budget?",
+        userAnswer: "O SLO define o limite máximo de indisponibilidade aceito antes de consumir o Error Budget.",
+        correctAnswer: "O Error Budget é a quantidade aceitável de indisponibilidade ou falha expressa por 100% - SLO.",
+        userIsCorrect: false,
+        explanation: "O SLO representa o percentual de sucesso desejado (ex: 99.9%). O Error Budget é o exato complemento matemático dessa meta: 100% - SLO (ex: 0.1%). Ele quantifica a margem de erros/indisponibilidade permitida antes de acionar políticas de congelamento de deploys."
+      },
+      {
+        id: 2,
+        question: "O que a equipe de SRE deve priorizar quando o Error Budget de um serviço é totalmente consumido em determinado período?",
+        userAnswer: "Bloquear novos deploys de funcionalidades e focar na estabilidade do serviço.",
+        correctAnswer: "Bloquear novos deploys de funcionalidades e focar na estabilidade do serviço.",
+        userIsCorrect: true,
+        explanation: "Quando o Error Budget atinge zero, a prioridade máxima passa a ser a resiliência. As alterações em código de produto são suspensas para focar em bugs, débito técnico e infraestrutura."
+      },
+      {
+        id: 3,
+        question: "De acordo com as melhores práticas de SRE, qual é o foco central na condução de um Post-mortem de incidente?",
+        userAnswer: "Identificar falhas no processo e nas ferramentas sem atribuir culpa individual.",
+        correctAnswer: "Identificar falhas no processo e nas ferramentas sem atribuir culpa individual.",
+        userIsCorrect: true,
+        explanation: "Uma cultura 'Blameless' assume que falhas humanas são sintomas de sistemas frágeis. O foco deve ser melhorar alertas, automações e processos, criando barreiras contra novos incidentes."
+      },
+      {
+        id: 4,
+        question: "Qual é a definição correta do conceito de 'Toil' (trabalho braçal/repetitivo) no contexto de SRE?",
+        userAnswer: "Trabalho operacional manual, repetitivo, automatizável, reativo e desprovido de valor duradouro.",
+        correctAnswer: "Trabalho operacional manual, repetitivo, automatizável, reativo e desprovido de valor duradouro.",
+        userIsCorrect: true,
+        explanation: "Toil escala linearmente com o crescimento do sistema se não for automatizado. Eliminar Toil garante que a equipe continue inovando em vez de apenas manter a operação rodando."
+      },
+      {
+        id: 5,
+        question: "Quais são as Quatro Sinais Dourados (Four Golden Signals) do monitoramento definidos pelo Google SRE?",
+        userAnswer: "Latência, Tráfego, Erros e Saturação.",
+        correctAnswer: "Latência, Tráfego, Erros e Saturação.",
+        userIsCorrect: true,
+        explanation: "Essas quatro métricas essenciais resumem o desempenho global: Latência (tempo de resposta), Tráfego (volume de chamadas), Erros (falhas ativas/passivas) e Saturação (uso de recursos finitos)."
+      },
+      {
+        id: 6,
+        question: "Qual é a principal diferença entre um Service Level Indicator (SLI) e um Service Level Objective (SLO)?",
+        userAnswer: "O SLI é a medição quantitativa contínua, enquanto o SLO é a meta numérica desejada para essa medição.",
+        correctAnswer: "O SLI é a medição quantitativa contínua, enquanto o SLO é a meta numérica desejada para essa medição.",
+        userIsCorrect: true,
+        explanation: "O SLI mede o estado real em tempo real (ex: '99.85% das requisições foram <200ms nos últimos 5m'). O SLO é o objetivo formal negociado (ex: 'Manter esse SLI acima de 99.9%')."
+      },
+      {
+        id: 7,
+        question: "Qual é a prática recomendada de Chaos Engineering (Engenharia do Caos) em ambientes de produção?",
+        userAnswer: "Injetar falhas de forma controlada para validar a resiliência teórica do sistema.",
+        correctAnswer: "Injetar falhas de forma controlada para validar a resiliência teórica do sistema.",
+        userIsCorrect: true,
+        explanation: "A Engenharia do Caos antecipa desastres através de experimentos hipotéticos e controlados, testando se os Circuit Breakers e o isolamento por Bulkheads reagem como planejado."
+      },
+      {
+        id: 8,
+        question: "No gerenciamento de incidentes SRE, qual é a principal responsabilidade da função de Incident Commander (Comandante do Incidente)?",
+        userAnswer: "Liderar a resposta global, delegar tarefas e coordenar a estratégia de resolução.",
+        correctAnswer: "Liderar a resposta global, delegar tarefas e coordenar a estratégia de resolução.",
+        userIsCorrect: true,
+        explanation: "O Incident Commander (IC) lidera a sala de crise sem necessariamente executar comandos técnicos diretos, garantindo foco na comunicação, estratégia e delegação eficiente."
+      },
+      {
+        id: 9,
+        question: "Como o princípio de 'Eliminar o Toil' impacta a alocação máxima de tempo recomendada para engenharia de SRE?",
+        userAnswer: "Manter o tempo dedicado ao Toil abaixo de 50%, reservando o restante para trabalho de engenharia.",
+        correctAnswer: "Manter o tempo dedicado ao Toil abaixo de 50%, reservando o restante para trabalho de engenharia.",
+        userIsCorrect: true,
+        explanation: "O limite estrito de 50% de Toil garante que pelo menos metade do tempo de trabalho dos engenheiros seja dedicado à criação de ferramentas duradouras, automações e arquitetura."
+      },
+      {
+        id: 10,
+        question: "Qual é a abordagem de arquitetura mais eficiente para minimizar o Blast Radius (raio de alcance da falha) em sistemas distribuídos?",
+        userAnswer: "Implementar isolamento por Bulkheads e padrões de Circuit Breaker entre microserviços.",
+        correctAnswer: "Implementar isolamento por Bulkheads e padrões de Circuit Breaker entre microserviços.",
+        userIsCorrect: true,
+        explanation: "Isolar dependências com compartimentos estanques (Bulkheads) e interromper chamadas a serviços instáveis (Circuit Breaker) impede a reação em cadeia e colapso total da aplicação."
+      }
+    ];
+
+    // Global Chart Instances
+    let goldenChart = null;
+    let toilChartInstance = null;
+
+    // Initialize App
+    document.addEventListener("DOMContentLoaded", () => {
+      renderQuizItems();
+      initGoldenSignalsChart();
+      initToilChart();
+      updateErrorBudgetMath(99.900);
+    });
+
+    // Tab Switcher
+    function switchTab(tabKey) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`tab-${tabKey}`).classList.add('active');
+
+      document.getElementById('sec-calculator').classList.add('hidden');
+      document.getElementById('sec-signals').classList.add('hidden');
+      document.getElementById('sec-toil').classList.add('hidden');
+      document.getElementById('sec-quiz').classList.add('hidden');
+
+      document.getElementById(`sec-${tabKey}`).classList.remove('hidden');
+    }
+
+    // 1. Math Error Budget Update
+    function updateErrorBudgetMath(sloVal) {
+      const slo = parseFloat(sloVal);
+      document.getElementById('slo-val').innerText = `${slo.toFixed(3)}%`;
+
+      const ebPercent = 100 - slo;
+      document.getElementById('eb-percentage').innerText = `${ebPercent.toFixed(3)}%`;
+
+      // Monthly Downtime (30 days * 24h * 60m * 60s = 2,592,000 seconds)
+      const secondsInMonth = 2592000;
+      const downtimeSecondsMonth = (ebPercent / 100) * secondsInMonth;
+      const minsMonth = Math.floor(downtimeSecondsMonth / 60);
+      const secsMonth = Math.round(downtimeSecondsMonth % 60);
+      document.getElementById('downtime-month').innerText = `${minsMonth}m ${secsMonth}s`;
+
+      // Yearly Downtime (365 days * 24h * 60m * 60s = 31,536,000 seconds)
+      const secondsInYear = 31536000;
+      const downtimeSecondsYear = (ebPercent / 100) * secondsInYear;
+      const hoursYear = Math.floor(downtimeSecondsYear / 3600);
+      const minsYear = Math.floor((downtimeSecondsYear % 3600) / 60);
+      const secsYear = Math.round(downtimeSecondsYear % 60);
+      document.getElementById('downtime-year').innerText = `${hoursYear}h ${minsYear}m ${secsYear}s`;
+
+      // Failed Reqs per Million
+      const failedReqs = Math.round((ebPercent / 100) * 1000000);
+      document.getElementById('failed-reqs').innerText = `${failedReqs.toLocaleString('pt-BR')} reqs`;
+    }
+
+    // 2. Four Golden Signals Chart Initialization
+    function initGoldenSignalsChart() {
+      const ctx = document.getElementById('goldenSignalsChart').getContext('2d');
+      goldenChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '23:59'],
+          datasets: [
+            {
+              label: 'Latência p99 (ms)',
+              data: [120, 115, 140, 310, 190, 150, 125],
+              borderColor: '#0284c7',
+              backgroundColor: 'rgba(2, 132, 199, 0.1)',
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: 'Tráfego (k req/s)',
+              data: [12, 8, 45, 95, 88, 62, 25],
+              borderColor: '#059669',
+              borderDash: [5, 5],
+              tension: 0.3
+            },
+            {
+              label: 'Erros (HTTP 5xx /s)',
+              data: [0, 0, 2, 14, 3, 1, 0],
+              borderColor: '#e11d48',
+              backgroundColor: 'rgba(225, 29, 72, 0.1)',
+              tension: 0.1
+            },
+            {
+              label: 'Saturação CPU (%)',
+              data: [25, 20, 55, 88, 72, 48, 30],
+              borderColor: '#d97706',
+              tension: 0.3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+            tooltip: { mode: 'index', intersect: false }
+          },
+          scales: {
+            y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    function highlightSignal(datasetIndex) {
+      if (!goldenChart) return;
+      goldenChart.data.datasets.forEach((ds, idx) => {
+        ds.borderWidth = idx === datasetIndex ? 4 : 1.5;
+      });
+      goldenChart.update();
+    }
+
+    // 3. Toil Governance Donut Chart
+    function initToilChart() {
+      const ctx = document.getElementById('toilChart').getContext('2d');
+      toilChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Trabalho de Toil (Operacional)', 'Engenharia & Automação'],
+          datasets: [{
+            data: [35, 65],
+            backgroundColor: ['#d97706', '#0284c7'],
+            borderWidth: 2,
+            borderColor: '#ffffff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12 } }
+          }
+        }
+      });
+    }
+
+    function updateToilChart(val) {
+      const toilVal = parseInt(val);
+      const engVal = 100 - toilVal;
+
+      document.getElementById('toil-val').innerText = `${toilVal}%`;
+      document.getElementById('eng-val').innerText = `${engVal}%`;
+
+      toilChartInstance.data.datasets[0].data = [toilVal, engVal];
+      
+      const statusBox = document.getElementById('toil-status-box');
+      if (toilVal > 50) {
+        statusBox.className = "p-4 rounded-lg bg-rose-50 border border-rose-200 text-sm text-rose-900";
+        statusBox.innerHTML = `
+          <span class="font-bold block text-rose-950 mb-1">⚠️ ALERTA: Violação da Regra dos 50%</span>
+          Você está dedicando <strong>${toilVal}%</strong> do tempo em tarefas manuais e repetitivas. Isso gera desgaste na equipe e impede o desenvolvimento de automações de resiliência. Reduza o Toil urgentemente!
+        `;
+        toilChartInstance.data.datasets[0].backgroundColor = ['#e11d48', '#94a3b8'];
+      } else {
+        statusBox.className = "p-4 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-900";
+        statusBox.innerHTML = `
+          <span class="font-bold block text-emerald-950 mb-1">✅ Operação Saudável</span>
+          Você está dedicando <strong>${engVal}%</strong> do tempo para Engenharia e Automação. Isso previne o burnout e garante escalabilidade contínua da infraestrutura.
+        `;
+        toilChartInstance.data.datasets[0].backgroundColor = ['#d97706', '#0284c7'];
+      }
+
+      toilChartInstance.update();
+    }
+
+    // 4. Render Quiz Item Cards
+    function renderQuizItems() {
+      const container = document.getElementById('quiz-list');
+      container.innerHTML = '';
+
+      quizData.forEach((item) => {
+        const isCorrect = item.userIsCorrect;
+        const card = document.createElement('div');
+        card.className = `p-4 rounded-lg border text-sm transition ${
+          isCorrect ? 'bg-slate-50 border-slate-200' : 'bg-rose-50/60 border-rose-200'
+        }`;
+
+        card.innerHTML = `
+          <div class="flex items-start justify-between gap-4">
+            <div class="space-y-2 flex-grow">
+              <div class="flex items-center gap-2">
+                <span class="font-bold ${isCorrect ? 'text-slate-700' : 'text-rose-800'}">Questão ${item.id}</span>
+                <span class="px-2 py-0.5 text-xs rounded-full font-semibold ${
+                  isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-200 text-rose-900'
+                }">
+                  ${isCorrect ? '✓ Correta' : '✕ Necessita Revisão'}
+                </span>
+              </div>
+              <h4 class="font-semibold text-slate-900 text-base">${item.question}</h4>
+              
+              <div class="space-y-1 text-xs md:text-sm pt-2">
+                <p><span class="font-bold text-slate-500">Sua Resposta:</span> <span class="${isCorrect ? 'text-slate-800' : 'text-rose-700 font-medium'}">${item.userAnswer}</span></p>
+                ${!isCorrect ? `<p><span class="font-bold text-emerald-700">Resposta Correta:</span> <span class="text-emerald-900 font-semibold">${item.correctAnswer}</span></p>` : ''}
+              </div>
+
+              <div class="mt-3 p-3 bg-white border border-slate-200 rounded text-xs text-slate-600 leading-relaxed">
+                <strong class="text-slate-800">💡 Análise SRE:</strong> ${item.explanation}
+              </div>
+            </div>
+          </div>
+        `;
+
+        container.appendChild(card);
+      });
+    }
+  </script>
+</body>
+</html>
